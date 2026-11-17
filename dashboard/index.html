@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Token Radar — which pre-token protocol is worth farming next</title>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<header class="hero">
+  <p class="kicker">TOKEN RADAR &middot; DEFI LLAMA SNAPSHOT <span id="asOf"></span></p>
+  <h1>Which pre-token protocol is worth farming next?</h1>
+  <p class="lede">Every protocol in the snapshot that records no token, ranked by what its
+  launch would be worth &mdash; and, for each one, the exact steps to farm it.
+  No hand-picked names: the same formula scores all <span id="boardSize"></span> rows.</p>
+  <dl class="stats">
+    <div><dt>Watchlist covered</dt><dd id="statWatch"></dd></div>
+    <div><dt>Ranked rows</dt><dd id="statRows"></dd></div>
+    <div><dt>Early finds below the floor</dt><dd id="statEarly"></dd></div>
+    <div><dt>Top implied value</dt><dd id="statTop"></dd></div>
+  </dl>
+</header>
+
+<main>
+  <section class="method" id="method">
+    <h2>How the value is worked out</h2>
+    <p><strong>Implied value = TVL &times; category multiple &times; growth &times; maturity &times; breadth.</strong>
+    The category multiple is the median market-cap / TVL of the live-token protocols in the
+    same category (whole-market median when a category has fewer than 4 peers). Growth is the
+    7-day TVL change, clamped to &minus;60%…+120% and weighted by &frac12;. Maturity rises from
+    0.60 to 1.00 over a protocol's first three years with no token. Breadth adds 2% per extra
+    chain, up to 8%. A protocol whose token already trades is never ranked: the Live token
+    table below shows the market's own values instead.</p>
+    <p class="fine">Bridged, wrapped and staked products of a token that already trades are left out
+    on purpose &mdash; WBTC is Bitcoin on Ethereum, not a launch waiting to happen. Model
+    <span id="modelVersion"></span>. Source: <span id="source"></span></p>
+    <details id="calibrationBox">
+      <summary>Category multiples, read off this snapshot's live-token protocols</summary>
+      <table class="calib"><thead><tr><th>Category</th><th>Multiple</th><th>Peers</th></tr></thead><tbody id="calibBody"></tbody></table>
+    </details>
+  </section>
+
+  <section class="controls" aria-label="Filter and sort the board">
+    <label>Search <input id="q" type="search" placeholder="name or slug"></label>
+    <label>Category <select id="cat"><option value="">All categories</option></select></label>
+    <label>Chain <select id="chain"><option value="">All chains</option></select></label>
+    <label>Sort by <select id="sort">
+      <option value="implied">Implied value</option>
+      <option value="tvl">TVL</option>
+      <option value="growth">7-day growth</option>
+      <option value="age">Age with no token</option>
+      <option value="name">Name A–Z</option>
+    </select></label>
+    <label class="check"><input id="watchOnly" type="checkbox"> Watchlist only</label>
+  </section>
+
+  <p class="count" id="count"></p>
+
+  <section class="detail" id="detail" hidden>
+    <button id="detailClose" type="button">Close &times;</button>
+    <h2 id="dName"></h2>
+    <p class="dmeta" id="dMeta"></p>
+    <dl class="breakdown" id="dBreak"></dl>
+    <h3>Farm plan</h3>
+    <ol class="steps" id="dSteps"></ol>
+    <p class="warn">A farm plan is a guess at eligibility, not a promise: no protocol here has
+    confirmed a token. Never pay anyone to claim, and never put in money you cannot afford to lose.</p>
+  </section>
+
+  <table class="board">
+    <thead><tr>
+      <th>#</th><th>Protocol</th><th>Category</th><th>Chains</th>
+      <th class="num">TVL</th><th class="num">7d</th><th class="num">Age</th>
+      <th class="num">Implied value</th>
+    </tr></thead>
+    <tbody id="rows"></tbody>
+  </table>
+
+  <section class="live">
+    <h2>Live token &mdash; the market's own values, not a model's</h2>
+    <p>These protocols already trade. Their market-cap / TVL ratios are where the
+    category multiples above come from.</p>
+    <table class="board">
+      <thead><tr><th>Protocol</th><th>Category</th><th class="num">TVL</th><th class="num">Market cap</th><th class="num">mcap / TVL</th></tr></thead>
+      <tbody id="liveRows"></tbody>
+    </table>
+  </section>
+</main>
+
+<footer>
+  <p>Token Radar &middot; model <span id="modelVersion2"></span> &middot; snapshot <span id="asOf2"></span> &middot;
+  Data: DefiLlama protocols. Implied values are this radar's own claim, never DefiLlama's and never a promise of a launch.</p>
+</footer>
+<script src="../data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
