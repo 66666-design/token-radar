@@ -1,7 +1,7 @@
 // Token radar entry (Node 22, standard library only).
 //
 // Reads the sealed snapshot from /input/snapshot.json (or --input <file|dir>),
-// scores every rankable pre-token protocol with the radar-2 model in
+// scores every rankable pre-token protocol with the radar-3 model in
 // lib/model.ts, writes the ranked board to /output/board.json, and copies this
 // repository's dashboard/ and screenshots/ to /output. Last, it writes
 // /output/dossier.json, the summary the judge reads, with the vendored
@@ -72,8 +72,8 @@ function copyFiles(from: string, to: string): string[] {
 
 copyFiles(join(here, 'dashboard'), join(out, 'dashboard'));
 const shots = copyFiles(join(here, 'screenshots'), join(out, 'screenshots'));
-if (shots.length < 3) {
-  process.stderr.write(`token radar: screenshots/ holds ${shots.length} image${shots.length === 1 ? '' : 's'}: hand in 3, the board, a detail view and a filtered view\n`);
+if (shots.length < 3 || shots.length > 4) {
+  process.stderr.write(`token radar: screenshots/ holds ${shots.length} image${shots.length === 1 ? '' : 's'}: hand in 3 or 4, the board, a detail view and a filtered view\n`);
   process.exit(1);
 }
 for (const name of shots) {

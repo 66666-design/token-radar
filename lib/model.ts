@@ -10,10 +10,10 @@
 // A wrapped, staked or bridged product of a token that already trades is not
 // ranked: WBTC is Bitcoin on Ethereum, staked ETH is ETH, a bridge moves a
 // token that exists. The board leaves those out by the same rule the
-// watchlist itself uses: their category (Bridge, Canonical Bridge, Liquid
-// Staking, Liquid Restaking, Restaked BTC, CEX), a wrapped / staked / staking
-// word in the name, an exchange's name at the start of it, or a version
-// marker at its end.
+// watchlist itself uses: their category (Bridge, Cross Chain Bridge,
+// Canonical Bridge, Liquid Staking, Liquid Restaking, Restaked BTC, CEX), a
+// wrapped / staked / staking word in the name, an exchange's name at the
+// start of it, or a version marker at its end.
 //
 // Implied value follows only from the snapshot's own figures, and the one
 // number the starter fixed by hand is now read off the market inside the
@@ -24,13 +24,13 @@
 // protocol name is ever special-cased: the same function scores every row.
 //
 //   baseMultiple = median(mcap / tvl) of live-token peers in the category
-//                  (whole-market median when the category has < 4 peers),
+//                  (whole-market median when the category has < 2 peers),
 //                  clamped to [0.05, 1.00]
 //   growth       = clamp(change_7d, -60, 120) per cent
 //   growthMult   = 1 + (growth / 100) x 0.5
 //   maturity     = 0.6 + min(age_days, 1095) / 1095 x 0.4
 //                  (age unknown: 365 days)
-//   breadth      = 1 + min(chains - 1, 4) x 0.02
+//   breadth      = 1 + min(max(chains - 1, 0), 4) x 0.02
 //   implied      = max(1, round(tvl x baseMultiple x growthMult
 //                                x maturity x breadth))
 
@@ -83,13 +83,13 @@ export const MODEL: ModelConstants = {
   unknown_age_days: 365,
   breadth_step: 0.02,
   breadth_cap_chains: 4,
-  category_min_peers: 4,
+  category_min_peers: 2,
   multiple_floor: 0.05,
   multiple_cap: 1.0,
 };
 
 /** The model's version label: the dashboard names it and the rules quote it. */
-export const MODEL_VERSION = 'radar-2';
+export const MODEL_VERSION = 'radar-3';
 
 /** How many live-token protocols the Live token view carries, by market cap. */
 export const LIVE_ROWS = 24;
@@ -98,6 +98,7 @@ export const LIVE_ROWS = 24;
 export interface CalibrationRow {
   category: string;
   multiple: number;
+  raw_multiple: number;
   peers: number;
 }
 
@@ -227,11 +228,11 @@ export function calibrate(snapshot: Snapshot, model: ModelConstants = MODEL): Ca
   const byCategory = new Map<string, number[]>();
   const all: number[] = [];
   for (const p of snapshot.protocols) {
-    if (p.mcap_usd === null || p.tvl_usd <= 0 || p.category === 'CEX') continue;
-    if (p.gecko_id === null && p.symbol === null) continue;
-    const ratio = p.mcap_usd / p.tvl_usd;
+    if (!isLiveToken(p) || p.tvl_usd <= 0 || p.category === 'CEX') continue;
+    const ratio = p.mcap_usd! / p.tvl_usd;
     if (!Number.isFinite(ratio) || ratio <= 0) continue;
     all.push(ratio);
+    if (p.category === null) continue;
     const list = byCategory.get(p.category) ?? [];
     list.push(ratio);
     byCategory.set(p.category, list);
@@ -239,11 +240,15 @@ export function calibrate(snapshot: Snapshot, model: ModelConstants = MODEL): Ca
   const clamp = (v: number): number => Math.min(model.multiple_cap, Math.max(model.multiple_floor, v));
   const global = all.length > 0 ? clamp(median(all)) : 0.25;
   const categories: CalibrationRow[] = [...byCategory.entries()]
-    .map(([category, ratios]) => ({
-      category,
-      multiple: ratios.length >= model.category_min_peers ? clamp(median(ratios)) : global,
-      peers: ratios.length,
-    }))
+    .map(([category, ratios]) => {
+      const raw = median(ratios);
+      return {
+        category,
+        raw_multiple: round4(raw),
+        multiple: ratios.length >= model.category_min_peers ? clamp(raw) : global,
+        peers: ratios.length,
+      };
+    })
     .sort((a, b) => b.multiple - a.multiple || (a.category < b.category ? -1 : 1));
   return { global_multiple: global, categories };
 }
@@ -278,7 +283,7 @@ export function impliedValue(
 const VERSIONED = /\s(V\d+(\.\d+)?|v\d+(\.\d+)?|\d+\.\d+)$/;
 
 /** Categories the watchlist's own rule leaves out: bridged, staked and exchange products. */
-const EXCLUDED_CATEGORIES = new Set(['Bridge', 'Canonical Bridge', 'Liquid Staking', 'Liquid Restaking', 'Restaked BTC', 'CEX']);
+const EXCLUDED_CATEGORIES = new Set(['Bridge', 'Cross Chain Bridge', 'Canonical Bridge', 'Liquid Staking', 'Liquid Restaking', 'Restaked BTC', 'CEX']);
 
 /** A whole wrapped / staked / staking word in a name. */
 const WRAPPED_WORD = /\b(wrapped|staked|staking)\b/i;
@@ -289,6 +294,11 @@ const EXCHANGE_PREFIXES = ['Binance', 'Coinbase', 'Bybit', 'Kraken', 'Bitget', '
 /** Whether a protocol records no token at all. */
 export function isPreToken(p: SnapshotProtocol): boolean {
   return p.mcap_usd === null && p.gecko_id === null && p.symbol === null;
+}
+
+/** Whether a protocol already has a token trading: a market cap plus a CoinGecko id or a symbol. */
+export function isLiveToken(p: SnapshotProtocol): boolean {
+  return p.mcap_usd !== null && (p.gecko_id !== null || p.symbol !== null);
 }
 
 /** Why a pre-token protocol is still not one the board ranks, or null when it is rankable. */
@@ -397,8 +407,10 @@ function holdDaysFor(age: number | null): number {
 function actionFor(p: SnapshotProtocol, capital: number, chain: string): string {
   const c = (p.category ?? '').toLowerCase();
   const name = p.name;
-  if (c.includes('lend') || c.includes('cdp') || c.includes('collateral')) return `Supply $${capital} of USDC to ${name} on ${chain} and keep the position open.`;
-  if (c.includes('dex') || c.includes('yield aggregator')) return `Provide $${capital} of liquidity to ${name}'s main pool on ${chain} and keep the position open.`;
+  if (c.includes('cdp')) return `Lock $${capital * 2} of collateral through ${name} on ${chain} and mint $${capital} of its stable asset.`;
+  if (c.includes('uncollateralized')) return `Deposit $${capital} into ${name}'s uncollateralized lending pool on ${chain} and keep the position open.`;
+  if (c.includes('lend') || c.includes('collateral')) return `Supply $${capital} of USDC to ${name} on ${chain} and keep the position open.`;
+  if (c.includes('dex')) return `Provide $${capital} of liquidity to ${name}'s main pool on ${chain} and keep the position open.`;
   if (c.includes('yield') || c.includes('leveraged farm')) return `Deposit $${capital} into ${name}'s highest-TVL vault on ${chain} and keep the shares.`;
   if (c.includes('staking') || c.includes('restak')) return `Stake $${capital} of the chain's staking asset through ${name} and keep the receipt.`;
   if (c.includes('perpetual') || c.includes('derivative')) return `Deposit $${capital} of USDC as margin on ${name} and open one small hedge.`;
@@ -412,6 +424,13 @@ function actionFor(p: SnapshotProtocol, capital: number, chain: string): string 
   if (c.includes('payment')) return `Send one $${capital} payment through ${name} on ${chain} and keep the receipt.`;
   if (c.includes('governance')) return `Delegate or vote with $${capital} of voting power through ${name} on ${chain}.`;
   if (c.includes('index')) return `Buy $${capital} of ${name}'s index token on ${chain} and hold it.`;
+  if (c.includes('farm')) return `Deposit $${capital} into ${name}'s farm on ${chain} and keep the position open.`;
+  if (c.includes('cedefi')) return `Deposit $${capital} into ${name}'s CeDeFi vault on ${chain} and keep the shares.`;
+  if (c.includes('anchor')) return `Lock $${capital} of BTC through ${name} on ${chain} and keep the receipt.`;
+  if (c.includes('otc')) return `Place a $${capital} trade through ${name}'s OTC desk on ${chain} and keep the receipt.`;
+  if (c.includes('card')) return `Load $${capital} onto ${name}'s card and make one purchase.`;
+  if (c.includes('decentralized btc')) return `Mint $${capital} of decentralized BTC through ${name} on ${chain} and hold it.`;
+  if (c.includes('liquidity manager')) return `Deposit $${capital} into ${name}'s managed liquidity vault on ${chain} and keep the shares.`;
   return `Deposit $${capital} of USDC into ${name} on ${chain} and keep the position open.`;
 }
 
@@ -419,8 +438,10 @@ function actionFor(p: SnapshotProtocol, capital: number, chain: string): string 
 function secondActionFor(p: SnapshotProtocol, capital: number, chain: string): string {
   const c = (p.category ?? '').toLowerCase();
   const name = p.name;
-  if (c.includes('lend') || c.includes('cdp') || c.includes('collateral')) return `Borrow $${Math.max(10, Math.round(capital / 5))} against the supply and repay it within the week.`;
-  if (c.includes('dex') || c.includes('yield aggregator')) return `Swap $25 through the same pool on ${chain} so the wallet shows both providing and trading.`;
+  if (c.includes('cdp')) return `Check the collateral ratio on ${name} and top it up if it falls below the protocol's minimum.`;
+  if (c.includes('uncollateralized')) return `Check ${name}'s loan book once and confirm the repayments are on schedule.`;
+  if (c.includes('lend') || c.includes('collateral')) return `Borrow $${Math.max(10, Math.round(capital / 5))} against the supply and repay it within the week.`;
+  if (c.includes('dex')) return `Swap $25 through the same pool on ${chain} so the wallet shows both providing and trading.`;
   if (c.includes('yield') || c.includes('leveraged farm')) return `Harvest the vault's yield once and compound it back into the same vault.`;
   if (c.includes('staking') || c.includes('restak')) return `Claim the staking rewards once and restake them through ${name}.`;
   if (c.includes('perpetual') || c.includes('derivative')) return `Place one limit order on ${name} and let it fill or cancel it after a day.`;
@@ -484,7 +505,7 @@ export function farmSteps(p: SnapshotProtocol, age: number | null): FarmStep[] {
 /** The live-token protocols, by market cap, for the dashboard's Live token view. */
 export function liveRows(snapshot: Snapshot): LiveRow[] {
   return snapshot.protocols
-    .filter((p) => !isPreToken(p) && p.category !== 'CEX')
+    .filter((p) => isLiveToken(p) && p.category !== 'CEX')
     .sort((a, b) => (b.mcap_usd ?? 0) - (a.mcap_usd ?? 0) || b.tvl_usd - a.tvl_usd)
     .slice(0, LIVE_ROWS)
     .map((p) => ({

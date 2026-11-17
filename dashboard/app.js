@@ -39,21 +39,28 @@
   $('modelVersion').textContent = D.model_version;
   $('modelVersion2').textContent = D.model_version;
   $('boardSize').textContent = D.board_size;
-  $('statWatch').textContent = D.watchlist_size + ' / ' + D.watchlist_size;
+  var covered = rows.filter(function (r) { return watchSet.has(r.slug); }).length;
+  $('statWatch').textContent = covered + ' / ' + D.watchlist_size;
   $('statRows').textContent = D.board_size;
   $('statEarly').textContent = D.early_size;
   $('statTop').textContent = money(rows[0] ? rows[0].implied_value_usd : 0);
 
-  // Calibration table: category multiples read off this snapshot.
+  // Calibration table: category multiples read off this snapshot. An arrow
+  // shows a measured median clamped to the 0.05-1.00 band; a star means the
+  // category had too few live-token peers, so the whole-market median is used.
   var calib = D.calibration;
   $('calibBody').innerHTML = calib.categories.map(function (c) {
-    return '<tr><td>' + esc(c.category) + '</td><td>' + c.multiple.toFixed(3) +
+    var mult = c.multiple.toFixed(3);
+    if (c.raw_multiple !== undefined && Math.abs(c.raw_multiple - c.multiple) > 0.0005) {
+      mult = c.raw_multiple.toFixed(3) + ' → ' + mult;
+    }
+    return '<tr><td>' + esc(c.category) + '</td><td>' + mult +
       (c.peers < D.model.category_min_peers ? ' *' : '') + '</td><td>' + c.peers + '</td></tr>';
   }).join('') + '<tr><td>Whole market (fallback)</td><td>' + calib.global_multiple.toFixed(3) +
     '</td><td>&mdash;</td></tr>';
   var note = document.createElement('p');
   note.className = 'fine';
-  note.textContent = '* Fewer than ' + D.model.category_min_peers + ' live-token peers: the whole-market median is used instead.';
+  note.textContent = '* Fewer than ' + D.model.category_min_peers + ' live-token peers: the whole-market median is used instead. An arrow shows a measured median clamped to the 0.05–1.00 band.';
   $('calibrationBox').appendChild(note);
 
   // Filter controls.
@@ -83,7 +90,7 @@
       if (watchOnly && !watchSet.has(r.slug)) return false;
       return true;
     });
-    var sort = $('sort').value;
+    var sort = ['implied', 'tvl', 'growth', 'age', 'name'].indexOf($('sort').value) >= 0 ? $('sort').value : 'implied';
     var key = {
       implied: function (r) { return -r.implied_value_usd; },
       tvl: function (r) { return -r.tvl_usd; },
@@ -122,13 +129,16 @@
     if (!r) return;
     selected = slug;
     var breadth = 1 + Math.min(Math.max(r.chains.length - 1, 0), 4) * 0.02;
+    var cal = calib.categories.filter(function (c) { return c.category === r.category; })[0];
+    var multNote = (cal && cal.peers < D.model.category_min_peers)
+      ? ' (whole-market median — fewer than ' + D.model.category_min_peers + ' live peers)' : '';
     $('dName').textContent = '#' + r.rank + ' ' + r.name;
     $('dMeta').textContent = (r.category || 'Uncategorised') + ' · ' + r.chains.join(', ') +
       ' · TVL ' + money(r.tvl_usd) + ' · 7d ' + pct(r.change_7d) +
       ' · tracked since ' + (r.listed_at || 'unknown') + (watchSet.has(r.slug) ? ' · on the watchlist' : '');
     $('dBreak').innerHTML =
       '<div><dt>Implied value</dt><dd>' + money(r.implied_value_usd) + '</dd></div>' +
-      '<div><dt>Category multiple</dt><dd>' + r.base_multiple.toFixed(3) + '×</dd></div>' +
+      '<div><dt>Category multiple</dt><dd>' + r.base_multiple.toFixed(3) + '×' + multNote + '</dd></div>' +
       '<div><dt>Growth multiplier</dt><dd>' + r.growth_multiplier.toFixed(2) + '×</dd></div>' +
       '<div><dt>Maturity multiplier</dt><dd>' + r.maturity_multiplier.toFixed(2) + '×</dd></div>' +
       '<div><dt>Chain breadth</dt><dd>' + breadth.toFixed(2) + '×</dd></div>';
