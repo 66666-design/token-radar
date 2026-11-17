@@ -410,7 +410,7 @@ function actionFor(p: SnapshotProtocol, capital: number, chain: string): string 
   if (c.includes('cdp')) return `Lock $${capital * 2} of collateral through ${name} on ${chain} and mint $${capital} of its stable asset.`;
   if (c.includes('uncollateralized')) return `Deposit $${capital} into ${name}'s uncollateralized lending pool on ${chain} and keep the position open.`;
   if (c.includes('lend') || c.includes('collateral')) return `Supply $${capital} of USDC to ${name} on ${chain} and keep the position open.`;
-  if (c.includes('dex')) return `Provide $${capital} of liquidity to ${name}'s main pool on ${chain} and keep the position open.`;
+  if (c.includes('dex') && !c.includes('index')) return `Provide $${capital} of liquidity to ${name}'s main pool on ${chain} and keep the position open.`;
   if (c.includes('yield') || c.includes('leveraged farm')) return `Deposit $${capital} into ${name}'s highest-TVL vault on ${chain} and keep the shares.`;
   if (c.includes('staking') || c.includes('restak')) return `Stake $${capital} of the chain's staking asset through ${name} and keep the receipt.`;
   if (c.includes('perpetual') || c.includes('derivative')) return `Deposit $${capital} of USDC as margin on ${name} and open one small hedge.`;
@@ -441,7 +441,7 @@ function secondActionFor(p: SnapshotProtocol, capital: number, chain: string): s
   if (c.includes('cdp')) return `Check the collateral ratio on ${name} and top it up if it falls below the protocol's minimum.`;
   if (c.includes('uncollateralized')) return `Check ${name}'s loan book once and confirm the repayments are on schedule.`;
   if (c.includes('lend') || c.includes('collateral')) return `Borrow $${Math.max(10, Math.round(capital / 5))} against the supply and repay it within the week.`;
-  if (c.includes('dex')) return `Swap $25 through the same pool on ${chain} so the wallet shows both providing and trading.`;
+  if (c.includes('dex') && !c.includes('index')) return `Swap $25 through the same pool on ${chain} so the wallet shows both providing and trading.`;
   if (c.includes('yield') || c.includes('leveraged farm')) return `Harvest the vault's yield once and compound it back into the same vault.`;
   if (c.includes('staking') || c.includes('restak')) return `Claim the staking rewards once and restake them through ${name}.`;
   if (c.includes('perpetual') || c.includes('derivative')) return `Place one limit order on ${name} and let it fill or cancel it after a day.`;
@@ -471,7 +471,7 @@ function weeklyActionFor(p: SnapshotProtocol): string {
   if (c.includes('cdp')) return 'a mint or a collateral top-up';
   if (c.includes('uncollateralized')) return 'a deposit or a loan-book check';
   if (c.includes('lend') || c.includes('collateral')) return 'a deposit or a borrow';
-  if (c.includes('dex')) return 'a swap or a liquidity top-up';
+  if (c.includes('dex') && !c.includes('index')) return 'a swap or a liquidity top-up';
   if (c.includes('yield') || c.includes('leveraged farm')) return 'a deposit or a harvest';
   if (c.includes('staking') || c.includes('restak')) return 'a stake or a reward claim';
   if (c.includes('perpetual') || c.includes('derivative')) return 'a hedge or a limit order';
