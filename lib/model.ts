@@ -455,7 +455,44 @@ function secondActionFor(p: SnapshotProtocol, capital: number, chain: string): s
   if (c.includes('payment')) return `Send a second, smaller payment through ${name} the following week.`;
   if (c.includes('governance')) return `Vote on a second ${name} proposal when one opens.`;
   if (c.includes('index')) return `Hold the index token through its next rebalance and check the new weights.`;
+  if (c.includes('farm')) return `Harvest the farm's rewards once and compound them back into the same farm.`;
+  if (c.includes('cedefi')) return `Check the CeDeFi vault's yield once and compound it back into the same vault.`;
+  if (c.includes('anchor')) return `Check the locked BTC receipt once and confirm the redemption terms.`;
+  if (c.includes('otc')) return `Place a second, smaller trade through the same OTC desk the following week.`;
+  if (c.includes('card')) return `Make a second purchase with the card the following week.`;
+  if (c.includes('decentralized btc')) return `Check the BTC peg once and hold through one redemption window.`;
+  if (c.includes('liquidity manager')) return `Rebalance the managed position once when the vault suggests it.`;
   return `Use the protocol's app a second time from the same wallet, a swap, a vote or a claim, so the wallet shows repeated use.`;
+}
+
+/** The weekly action a farm plan asks for, in the category's own words. */
+function weeklyActionFor(p: SnapshotProtocol): string {
+  const c = (p.category ?? '').toLowerCase();
+  if (c.includes('cdp')) return 'a mint or a collateral top-up';
+  if (c.includes('uncollateralized')) return 'a deposit or a loan-book check';
+  if (c.includes('lend') || c.includes('collateral')) return 'a deposit or a borrow';
+  if (c.includes('dex')) return 'a swap or a liquidity top-up';
+  if (c.includes('yield') || c.includes('leveraged farm')) return 'a deposit or a harvest';
+  if (c.includes('staking') || c.includes('restak')) return 'a stake or a reward claim';
+  if (c.includes('perpetual') || c.includes('derivative')) return 'a hedge or a limit order';
+  if (c.includes('prediction')) return 'a market position';
+  if (c.includes('curator') || c.includes('allocator')) return 'a vault deposit or a rebalance';
+  if (c.includes('stable')) return 'a mint or a supply';
+  if (c.includes('rwa')) return 'a mint or a redemption check';
+  if (c.includes('insurance')) return 'a cover check or an extension';
+  if (c.includes('basis')) return 'a vault top-up or a funding check';
+  if (c.includes('chain') || c === 'chain') return 'a bridge or a swap';
+  if (c.includes('payment')) return 'a payment';
+  if (c.includes('governance')) return 'a vote';
+  if (c.includes('index')) return 'a buy or a rebalance check';
+  if (c.includes('farm')) return 'a deposit or a harvest';
+  if (c.includes('cedefi')) return 'a vault deposit or a harvest';
+  if (c.includes('anchor')) return 'a lock or a receipt check';
+  if (c.includes('otc')) return 'a trade';
+  if (c.includes('card')) return 'a purchase';
+  if (c.includes('decentralized btc')) return 'a mint or a hold check';
+  if (c.includes('liquidity manager')) return 'a vault deposit or a rebalance';
+  return 'a deposit, a borrow, a swap or a vote';
 }
 
 /**
@@ -468,15 +505,16 @@ export function farmSteps(p: SnapshotProtocol, age: number | null): FarmStep[] {
   const capital = capitalFor(p);
   const hold = holdDaysFor(age);
   const gas = gasFor(chain);
+  const isCdp = (p.category ?? '').toLowerCase().includes('cdp');
   return [
     {
-      text: `Use a fresh wallet that holds only the funds you plan to farm, and keep its seed phrase offline.`,
+      text: `Standard preflight: Use a fresh wallet that holds only the funds you plan to farm, and keep its seed phrase offline.`,
       cost: 'nothing to set up',
       time: '5 minutes',
     },
     {
       text: actionFor(p, capital, chain),
-      cost: `$${capital} of capital and ${gas}`,
+      cost: isCdp ? `$${capital * 2} of collateral locked (minting $${capital} of debt) and ${gas}` : `$${capital} of capital and ${gas}`,
       time: '15 minutes to set up',
     },
     {
@@ -485,17 +523,17 @@ export function farmSteps(p: SnapshotProtocol, age: number | null): FarmStep[] {
       time: '10 minutes',
     },
     {
-      text: `Make one qualifying action each week, such as a deposit, a borrow, a swap or a vote.`,
+      text: `Make one qualifying action each week, such as ${weeklyActionFor(p)}.`,
       cost: `${gas} a week`,
       time: '10 minutes a week',
     },
     {
       text: `Hold the position for at least ${hold} days so the activity is counted in more than one snapshot.`,
-      cost: `the $${capital} stays in the position`,
+      cost: isCdp ? `the $${capital * 2} of collateral stays locked` : `the $${capital} stays in the position`,
       time: `${hold} days`,
     },
     {
-      text: `Before you withdraw, open the protocol's own points or rewards page and claim only from the link it publishes, then write the wallet, the dates and every transaction in a farm log.`,
+      text: `Standard exit: Before you withdraw, open the protocol's own points or rewards page and claim only from the link it publishes, then write the wallet, the dates and every transaction in a farm log.`,
       cost: 'no fee to check, and never pay to claim',
       time: '15 minutes',
     },

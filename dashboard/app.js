@@ -58,9 +58,13 @@
       (c.peers < D.model.category_min_peers ? ' *' : '') + '</td><td>' + c.peers + '</td></tr>';
   }).join('') + '<tr><td>Whole market (fallback)</td><td>' + calib.global_multiple.toFixed(3) +
     '</td><td>&mdash;</td></tr>';
+  var zeroPeerCats = [...new Set(rows.map(function (r) { return r.category; }).filter(function (c) {
+    return c && !calib.categories.some(function (x) { return x.category === c; });
+  }))].sort();
   var note = document.createElement('p');
   note.className = 'fine';
-  note.textContent = '* Fewer than ' + D.model.category_min_peers + ' live-token peers: the whole-market median is used instead. An arrow shows a measured median clamped to the 0.05–1.00 band.';
+  note.textContent = '* Fewer than ' + D.model.category_min_peers + ' live-token peers: the whole-market median is used instead. An arrow shows a measured median clamped to the 0.05–1.00 band.' +
+    (zeroPeerCats.length > 0 ? ' ' + zeroPeerCats.length + ' categories have no live-token peers at all (' + zeroPeerCats.join(', ') + ') and use the whole-market median too.' : '');
   $('calibrationBox').appendChild(note);
 
   // Filter controls.
@@ -130,8 +134,9 @@
     selected = slug;
     var breadth = 1 + Math.min(Math.max(r.chains.length - 1, 0), 4) * 0.02;
     var cal = calib.categories.filter(function (c) { return c.category === r.category; })[0];
-    var multNote = (cal && cal.peers < D.model.category_min_peers)
-      ? ' (whole-market median — fewer than ' + D.model.category_min_peers + ' live peers)' : '';
+    var multNote = '';
+    if (!cal) multNote = ' (whole-market median — no live-token peers in this category)';
+    else if (cal.peers < D.model.category_min_peers) multNote = ' (whole-market median — fewer than ' + D.model.category_min_peers + ' live peers)';
     $('dName').textContent = '#' + r.rank + ' ' + r.name;
     $('dMeta').textContent = (r.category || 'Uncategorised') + ' · ' + r.chains.join(', ') +
       ' · TVL ' + money(r.tvl_usd) + ' · 7d ' + pct(r.change_7d) +
